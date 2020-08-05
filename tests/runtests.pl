@@ -2397,7 +2397,7 @@ sub runsocksserver {
 # start the dict server
 #
 sub rundictserver {
-    my ($verbose, $alt, $port) = @_;
+    my ($verbose, $alt) = @_;
     my $proto = "dict";
     my $ip = $HOSTIP;
     my $ipvnum = 4;
@@ -2434,38 +2434,33 @@ sub rundictserver {
     $flags .= "--verbose 1 " if($debugprotocol);
     $flags .= "--pidfile \"$pidfile\" --logfile \"$logfile\" ";
     $flags .= "--id $idnum " if($idnum > 1);
-    $flags .= "--port $port --srcdir \"$srcdir\" ";
+    $flags .= "--srcdir \"$srcdir\" ";
     $flags .= "--host $HOSTIP";
 
-    my $cmd = "$srcdir/dictserver.py $flags";
-    my ($dictpid, $pid2) = startnew($cmd, $pidfile, 15, 0);
+    my $port = 29000;
+    my ($dictpid, $pid2);
+    for(1 .. 10) {
+        my $aflags = "--port $port $flags";
+        my $cmd = "$srcdir/dictserver.py $aflags";
+        ($dictpid, $pid2) = startnew($cmd, $pidfile, 15, 0);
 
-    if($dictpid <= 0 || !pidexists($dictpid)) {
-        # it is NOT alive
-        logmsg "RUN: failed to start the $srvrname server\n";
-        stopserver($server, "$pid2");
-        displaylogs($testnumcheck);
-        $doesntrun{$pidfile} = 1;
-        return (0,0);
+        if($dictpid <= 0 || !pidexists($dictpid)) {
+            # it is NOT alive
+            logmsg "RUN: failed to start the $srvrname server\n";
+            stopserver($server, "$pid2");
+            displaylogs($testnumcheck);
+            $doesntrun{$pidfile} = 1;
+            $dictpid = $pid2 = 0;
+            next;
+        }
+        $doesntrun{$pidfile} = 0;
+
+        if($verbose) {
+            logmsg "RUN: $srvrname server PID $dictpid port $port\n";
+        }
     }
 
-    # Server is up. Verify that we can speak to it.
-    my $pid3 = verifyserver($proto, $ipvnum, $idnum, $ip, $port);
-    if(!$pid3) {
-        logmsg "RUN: $srvrname server failed verification\n";
-        # failed to talk to it properly. Kill the server and return failure
-        stopserver($server, "$dictpid $pid2");
-        displaylogs($testnumcheck);
-        $doesntrun{$pidfile} = 1;
-        return (0,0);
-    }
-    $pid2 = $pid3;
-
-    if($verbose) {
-        logmsg "RUN: $srvrname server is now running PID $dictpid\n";
-    }
-
-    return ($dictpid, $pid2);
+    return ($dictpid, $pid2, $port);
 }
 
 #######################################################################
@@ -4960,7 +4955,7 @@ sub startservers {
         }
         elsif($what eq "dict") {
             if(!$run{'dict'}) {
-                ($pid, $pid2) = rundictserver($verbose, "", $DICTPORT);
+                ($pid, $pid2, $DICTPORT) = rundictserver($verbose, "");
                 if($pid <= 0) {
                     return "failed starting DICT server";
                 }
@@ -5487,7 +5482,6 @@ if ($gdbthis) {
 
 $minport         = $base; # original base port number
 $HTTP2PORT       = $base++; # HTTP/2 port
-$DICTPORT        = $base++; # DICT port
 $SMBPORT         = $base++; # SMB port
 $SMBSPORT        = $base++; # SMBS port
 $NEGTELNETPORT   = $base++; # TELNET port with negotiation
