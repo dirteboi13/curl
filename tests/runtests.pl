@@ -2589,6 +2589,7 @@ sub runnegtelnetserver {
     my ($ntelpid, $pid2);
     my $port = 32000;
     for(1 .. 10) {
+        $port += int(rand(800));
         my $aflags ="--port $port $flags";
         my $cmd = "$srcdir/negtelnetserver.py $flags";
         ($ntelpid, $pid2) = startnew($cmd, $pidfile, 15, 0);
